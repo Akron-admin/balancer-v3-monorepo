@@ -87,8 +87,8 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
         if (params.kind == SwapKind.EXACT_IN) {
             uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
-            uint256 lastAmountGivenScaled18 = params.balancesScaled18[params.indexIn] - lastBalanceInScaled18;
             if (params.balancesScaled18[params.indexIn] > lastBalanceInScaled18) {
+                uint256 lastAmountGivenScaled18 = params.balancesScaled18[params.indexIn] - lastBalanceInScaled18;
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
                     lastBalanceInScaled18,
                     weights[params.indexIn].divDown(weights[params.indexOut]), 
