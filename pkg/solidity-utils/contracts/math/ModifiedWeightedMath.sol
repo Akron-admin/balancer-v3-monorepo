@@ -125,7 +125,7 @@ library ModifiedWeightedMath {
         return 
             (power - balanceIn.divUp(balanceIn + amountIn).powUp(exponent))
                 * FixedPoint.ONE * (balanceIn + amountIn) 
-                / ((FixedPoint.ONE - (power.complement())) * amountIn);
+                / (power * amountIn);
     }
 
     /**
@@ -149,8 +149,8 @@ library ModifiedWeightedMath {
                 totalPower - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent)
                     - (lastPower - balanceIn.divUp(balanceIn + lastAmountIn).powUp(exponent))
             )
-                * FixedPoint.ONE * (balanceIn + (totalAmountIn - lastAmountIn)) 
-                / ((FixedPoint.ONE - (lastPower - totalPower)) * (totalAmountIn - lastAmountIn));
+                * FixedPoint.ONE * (balanceIn + totalAmountIn) 
+                / (totalPower * (totalAmountIn - lastAmountIn));
     }
 
     /**
@@ -169,7 +169,7 @@ library ModifiedWeightedMath {
         uint256 power = (balanceOut - amountOut).divUp(balanceOut - amountOut * 2).powUp(exponent);
 
         return 
-            (power - balanceOut.divUp(balanceOut - amountOut).powUp(exponent) ) 
+            (power - balanceOut.divUp(balanceOut - amountOut).powUp(exponent)) 
                 * FixedPoint.ONE 
                 / (power - FixedPoint.ONE);
     }
