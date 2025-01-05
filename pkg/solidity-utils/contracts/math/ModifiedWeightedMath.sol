@@ -3,7 +3,7 @@
 pragma solidity ^0.8.24;
 
 import { FixedPoint } from "./FixedPoint.sol";
-import "forge-std/console.sol";
+
 library ModifiedWeightedMath {
     using FixedPoint for uint256;
 

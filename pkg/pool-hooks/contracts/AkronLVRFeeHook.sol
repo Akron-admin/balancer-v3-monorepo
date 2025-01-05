@@ -15,6 +15,8 @@ import {
     PoolSwapParams,
     AfterSwapParams,
     HookFlags,
+    AddLiquidityKind, 
+    RemoveLiquidityKind,
     SwapKind
 } from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
 
@@ -41,12 +43,7 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
      */
     event LVRFeeHookRegistered(address indexed hooksContract, address indexed pool);
 
-    struct BlockState {
-        uint256[] lastBalancesScaled18;
-        uint256 lastInvariant;
-    }
-
-    mapping(address pool => mapping(uint256 blocknumber => BlockState)) internal blockStates;
+    mapping(address pool => mapping(uint256 blocknumber => uint256[])) internal lastBalancesScaled18;
 
     constructor(IVault vault) VaultGuard(vault) {
         // solhint-disable-previous-line no-empty-blocks
@@ -56,6 +53,8 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
     function getHookFlags() public pure override returns (HookFlags memory hookFlags) {
         hookFlags.shouldCallBeforeSwap = true;
         hookFlags.shouldCallComputeDynamicSwapFee = true;
+        hookFlags.shouldCallAfterAddLiquidity = true;
+        hookFlags.shouldCallAfterRemoveLiquidity = true;
     }
 
     /// @inheritdoc IHooks
@@ -70,13 +69,11 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
     }
 
     function onBeforeSwap(PoolSwapParams calldata params, address pool) public override returns (bool) {
-        BlockState storage state = blockStates[pool][block.number];
-        // Works only for pools supporting two tokens.
-        if (state.lastInvariant == 0) {
-            state.lastBalancesScaled18 = new uint256[](2);
-            state.lastBalancesScaled18[params.indexIn] = params.balancesScaled18[params.indexIn];
-            state.lastBalancesScaled18[params.indexOut] = params.balancesScaled18[params.indexOut];
-            state.lastInvariant = params.balancesScaled18[params.indexIn] * params.balancesScaled18[params.indexOut];   
+        if (lastBalancesScaled18[pool][block.number].length == 0) {
+            lastBalancesScaled18[pool][block.number] = new uint256[](params.balancesScaled18.length);
+            for (uint256 i = 0; i < params.balancesScaled18.length; ++i) {
+                lastBalancesScaled18[pool][block.number][i] = params.balancesScaled18[i];
+            }
         }
         return true;
     }
@@ -87,23 +84,16 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
         address pool,
         uint256 
     ) public view override onlyVault returns (bool, uint256 swapFeePercentage) {
-        
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
-
         if (params.kind == SwapKind.EXACT_IN) {
-            uint256 lastBalanceInScaled18 = blockStates[pool][block.number].lastBalancesScaled18[params.indexIn] 
-                * Math.sqrt(
-                    params.balancesScaled18[params.indexOut] 
-                        * params.balancesScaled18[params.indexIn] 
-                        / blockStates[pool][block.number].lastInvariant
-                );
-
+            uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
+            uint256 lastAmountGivenScaled18 = params.balancesScaled18[params.indexIn] - lastBalanceInScaled18;
             if (params.balancesScaled18[params.indexIn] > lastBalanceInScaled18) {
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
                     lastBalanceInScaled18,
                     weights[params.indexIn].divDown(weights[params.indexOut]), 
-                    params.balancesScaled18[params.indexIn] - lastBalanceInScaled18 + params.amountGivenScaled18,
-                    params.balancesScaled18[params.indexIn] - lastBalanceInScaled18
+                    lastAmountGivenScaled18 + params.amountGivenScaled18,
+                    lastAmountGivenScaled18
                 );
             } else {
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
@@ -111,21 +101,16 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
                     weights[params.indexIn].divDown(weights[params.indexOut]), 
                     params.amountGivenScaled18
                 );
-            }     
+            }  
         } else {
-            uint256 lastBalanceOutScaled18 = blockStates[pool][block.number].lastBalancesScaled18[params.indexOut] 
-                * Math.sqrt(
-                    params.balancesScaled18[params.indexOut] 
-                        * params.balancesScaled18[params.indexIn] 
-                        / blockStates[pool][block.number].lastInvariant
-                );
-
+            uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
             if (lastBalanceOutScaled18 > params.balancesScaled18[params.indexOut]) {
+                uint256 lastAmountGivenScaled18 = lastBalanceOutScaled18 - params.balancesScaled18[params.indexOut];
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
                     lastBalanceOutScaled18,
                     weights[params.indexOut].divUp(weights[params.indexIn]),
-                    lastBalanceOutScaled18 - params.balancesScaled18[params.indexOut] + params.amountGivenScaled18,
-                    lastBalanceOutScaled18 - params.balancesScaled18[params.indexOut]
+                    lastAmountGivenScaled18 + params.amountGivenScaled18,
+                    lastAmountGivenScaled18
                 );
             } else {
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
@@ -135,7 +120,48 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
                 );
             }
         }
-
         return (true, swapFeePercentage);
     }
+
+    function onAfterAddLiquidity(
+        address,
+        address pool,
+        AddLiquidityKind,
+        uint256[] memory amountsInScaled18,
+        uint256[] memory amountsInRaw,
+        uint256,
+        uint256[] memory balancesScaled18,
+        bytes memory
+    ) public override returns (bool, uint256[] memory) {
+        if (lastBalancesScaled18[pool][block.number].length != 0) {
+            for (uint256 i = 0; i < balancesScaled18.length; ++i) {
+                lastBalancesScaled18[pool][block.number][i] = 
+                    lastBalancesScaled18[pool][block.number][i] 
+                        * balancesScaled18[i] 
+                        / (balancesScaled18[i] - amountsInScaled18[i]);
+            }
+        }
+        return (true, amountsInRaw);
+    }
+
+    function onAfterRemoveLiquidity(
+        address,
+        address pool,
+        RemoveLiquidityKind,
+        uint256,
+        uint256[] memory amountsOutScaled18,
+        uint256[] memory amountsOutRaw,
+        uint256[] memory balancesScaled18,
+        bytes memory
+    ) public override onlyVault returns (bool, uint256[] memory) {
+        if (lastBalancesScaled18[pool][block.number].length != 0) {
+            for (uint256 i = 0; i < balancesScaled18.length; ++i) {
+                lastBalancesScaled18[pool][block.number][i] = 
+                    lastBalancesScaled18[pool][block.number][i] * balancesScaled18[i] 
+                        / (balancesScaled18[i] + amountsOutScaled18[i]);
+            }
+        }
+        return (true, amountsOutRaw);
+    }
+
 }
