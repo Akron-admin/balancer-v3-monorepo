@@ -188,7 +188,6 @@ library ModifiedWeightedMath {
         uint256 totalAmountOut,
         uint256 lastAmountOut
     ) internal pure returns (uint256) {
-        
         uint256 totalPower = (balanceOut - totalAmountOut).divUp(balanceOut - totalAmountOut * 2).powUp(exponent);
         uint256 lastPower = (balanceOut - lastAmountOut).divUp(balanceOut - lastAmountOut * 2).powUp(exponent);
         return 
@@ -199,4 +198,34 @@ library ModifiedWeightedMath {
                 * FixedPoint.ONE 
                 / (totalPower - lastPower);
     }
+
+    function sqrt(uint x) internal pure returns (uint y) {
+        uint z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
+
+    function getLastAmountOutGivenExactOut(
+        uint256 balanceIn, 
+        uint256 balanceOut, 
+        uint256 lastBalanceIn, 
+        uint256 lastBalanceOut 
+    ) internal pure returns (uint256 lastAmountOut) {
+        return 
+            sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut - balanceIn;
+    }
+
+    function getLastAmountInGivenExactIn(
+        uint256 balanceIn, 
+        uint256 balanceOut, 
+        uint256 lastBalanceIn, 
+        uint256 lastBalanceOut 
+    ) internal pure returns (uint256 lastAmountIn) {
+        return 
+            balanceOut - sqrt(lastBalanceIn * balanceIn * balanceOut / lastBalanceOut) * lastBalanceOut / lastBalanceIn;
+    }
+
 }

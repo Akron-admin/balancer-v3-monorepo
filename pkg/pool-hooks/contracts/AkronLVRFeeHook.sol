@@ -53,8 +53,6 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
     function getHookFlags() public pure override returns (HookFlags memory hookFlags) {
         hookFlags.shouldCallBeforeSwap = true;
         hookFlags.shouldCallComputeDynamicSwapFee = true;
-        hookFlags.shouldCallAfterAddLiquidity = true;
-        hookFlags.shouldCallAfterRemoveLiquidity = true;
     }
 
     /// @inheritdoc IHooks
@@ -85,37 +83,43 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
         uint256 
     ) public view override onlyVault returns (bool, uint256 swapFeePercentage) {
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
+        uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
+        uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
         if (params.kind == SwapKind.EXACT_IN) {
-            uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
-            uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
-            if (
-                params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
-                    > lastBalanceInScaled18 * params.balancesScaled18[params.indexOut]
+            if (params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
+                > params.balancesScaled18[params.indexOut] * lastBalanceInScaled18
             ) {
-                uint256 lastAmountGivenScaled18 = params.balancesScaled18[params.indexIn] - lastBalanceInScaled18;
-                swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
+                uint256 lastAmountGivenScaled18 = ModifiedWeightedMath.getLastAmountInGivenExactIn(
+                    params.balancesScaled18[params.indexIn], 
+                    params.balancesScaled18[params.indexOut], 
                     lastBalanceInScaled18,
-                    weights[params.indexIn].divDown(weights[params.indexOut]), 
+                    lastBalanceOutScaled18
+                );
+                swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
+                    params.balancesScaled18[params.indexIn] - lastAmountGivenScaled18,
+                    weights[params.indexIn].divDown(weights[params.indexOut]),
                     lastAmountGivenScaled18 + params.amountGivenScaled18,
                     lastAmountGivenScaled18
                 );
             } else {
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
-                    params.balancesScaled18[params.indexIn], 
-                    weights[params.indexIn].divDown(weights[params.indexOut]), 
+                    params.balancesScaled18[params.indexIn],
+                    weights[params.indexIn].divDown(weights[params.indexOut]),
                     params.amountGivenScaled18
                 );
-            }  
+            }
         } else {
-            uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
-            uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
-            if (
-                params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
-                    > lastBalanceInScaled18 * params.balancesScaled18[params.indexOut]
+            if (params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
+                > params.balancesScaled18[params.indexOut] * lastBalanceInScaled18
             ) {
-                uint256 lastAmountGivenScaled18 = lastBalanceOutScaled18 - params.balancesScaled18[params.indexOut];
+                uint256 lastAmountGivenScaled18 = ModifiedWeightedMath.getLastAmountOutGivenExactOut(
+                    params.balancesScaled18[params.indexIn], 
+                    params.balancesScaled18[params.indexOut], 
+                    lastBalanceInScaled18, 
+                    lastBalanceOutScaled18
+                );
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
-                    lastBalanceOutScaled18,
+                    params.balancesScaled18[params.indexOut] + lastAmountGivenScaled18,
                     weights[params.indexOut].divUp(weights[params.indexIn]),
                     lastAmountGivenScaled18 + params.amountGivenScaled18,
                     lastAmountGivenScaled18
@@ -129,47 +133,6 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
             }
         }
         return (true, swapFeePercentage);
-    }
-
-    function onAfterAddLiquidity(
-        address,
-        address pool,
-        AddLiquidityKind,
-        uint256[] memory amountsInScaled18,
-        uint256[] memory amountsInRaw,
-        uint256,
-        uint256[] memory balancesScaled18,
-        bytes memory
-    ) public override returns (bool, uint256[] memory) {
-        if (lastBalancesScaled18[pool][block.number].length != 0) {
-            for (uint256 i = 0; i < balancesScaled18.length; ++i) {
-                lastBalancesScaled18[pool][block.number][i] = 
-                    lastBalancesScaled18[pool][block.number][i] 
-                        * balancesScaled18[i] 
-                        / (balancesScaled18[i] - amountsInScaled18[i]);
-            }
-        }
-        return (true, amountsInRaw);
-    }
-
-    function onAfterRemoveLiquidity(
-        address,
-        address pool,
-        RemoveLiquidityKind,
-        uint256,
-        uint256[] memory amountsOutScaled18,
-        uint256[] memory amountsOutRaw,
-        uint256[] memory balancesScaled18,
-        bytes memory
-    ) public override onlyVault returns (bool, uint256[] memory) {
-        if (lastBalancesScaled18[pool][block.number].length != 0) {
-            for (uint256 i = 0; i < balancesScaled18.length; ++i) {
-                lastBalancesScaled18[pool][block.number][i] = 
-                    lastBalancesScaled18[pool][block.number][i] * balancesScaled18[i] 
-                        / (balancesScaled18[i] + amountsOutScaled18[i]);
-            }
-        }
-        return (true, amountsOutRaw);
     }
 
 }
