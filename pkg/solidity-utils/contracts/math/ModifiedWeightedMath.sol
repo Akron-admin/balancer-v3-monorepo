@@ -215,7 +215,7 @@ library ModifiedWeightedMath {
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountIn) {
         return 
-            Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Floor) * lastBalanceIn / lastBalanceOut - balanceIn;
+            Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Ceil) * lastBalanceIn / lastBalanceOut - balanceIn;
     }
 
     function getLastBalanceOutNegativeDeltaGivenExactOut(
@@ -235,7 +235,7 @@ library ModifiedWeightedMath {
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountOut) {
         return 
-            balanceOut - Math.sqrt(lastBalanceIn * balanceOut * balanceIn / lastBalanceOut, Math.Rounding.Ceil) * lastBalanceOut / lastBalanceIn;
+            balanceOut - Math.sqrt(lastBalanceIn * balanceOut * balanceIn / lastBalanceOut, Math.Rounding.Floor) * lastBalanceOut / lastBalanceIn;
     }
 
 }
