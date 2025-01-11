@@ -87,7 +87,11 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
         if (params.kind == SwapKind.EXACT_IN) {
             uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
-            if (params.balancesScaled18[params.indexIn] > lastBalanceInScaled18) {
+            uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
+            if (
+                params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
+                    > lastBalanceInScaled18 * params.balancesScaled18[params.indexOut]
+            ) {
                 uint256 lastAmountGivenScaled18 = params.balancesScaled18[params.indexIn] - lastBalanceInScaled18;
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
                     lastBalanceInScaled18,
@@ -103,8 +107,12 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
                 );
             }  
         } else {
+            uint256 lastBalanceInScaled18 = lastBalancesScaled18[pool][block.number][params.indexIn];
             uint256 lastBalanceOutScaled18 = lastBalancesScaled18[pool][block.number][params.indexOut];
-            if (lastBalanceOutScaled18 > params.balancesScaled18[params.indexOut]) {
+            if (
+                params.balancesScaled18[params.indexIn] * lastBalanceOutScaled18 
+                    > lastBalanceInScaled18 * params.balancesScaled18[params.indexOut]
+            ) {
                 uint256 lastAmountGivenScaled18 = lastBalanceOutScaled18 - params.balancesScaled18[params.indexOut];
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
                     lastBalanceOutScaled18,
