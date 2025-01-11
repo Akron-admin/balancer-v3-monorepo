@@ -198,7 +198,7 @@ library ModifiedWeightedMath {
                 / (totalPower - lastPower);
     }
 
-    function getLastBalanceInPositiveDeltaGivenExactIn(
+    function computePositiveDeltaInGivenExactIn(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
@@ -208,7 +208,7 @@ library ModifiedWeightedMath {
             balanceIn - Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Floor) * lastBalanceIn / lastBalanceOut;
     }
 
-    function getLastBalanceInNegativeDeltaGivenExactIn(
+    function computeNegativeDeltaInGivenExactIn(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
@@ -218,7 +218,7 @@ library ModifiedWeightedMath {
             Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Ceil) * lastBalanceIn / lastBalanceOut - balanceIn;
     }
 
-    function getLastBalanceOutNegativeDeltaGivenExactOut(
+    function computeNegativeDeltaOutGivenExactOut(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
@@ -228,7 +228,7 @@ library ModifiedWeightedMath {
             Math.sqrt(lastBalanceIn * balanceOut * balanceIn / lastBalanceOut, Math.Rounding.Ceil) * lastBalanceOut / lastBalanceIn - balanceOut;
     }
 
-    function getLastBalanceOutPositiveDeltaGivenExactOut(
+    function computePositiveDeltaOutGivenExactOut(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 

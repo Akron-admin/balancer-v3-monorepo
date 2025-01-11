@@ -3,25 +3,19 @@
 pragma solidity ^0.8.24;
 
 import { IBasePool } from "@balancer-labs/v3-interfaces/contracts/vault/IBasePool.sol";
-import { IWeightedPool } from "@balancer-labs/v3-interfaces/contracts/pool-weighted/IWeightedPool.sol";
 import { IVault } from "@balancer-labs/v3-interfaces/contracts/vault/IVault.sol";
+import { IWeightedPool } from "@balancer-labs/v3-interfaces/contracts/pool-weighted/IWeightedPool.sol";
 import {
-    LiquidityManagement,
-    TokenConfig,
-    PoolSwapParams,
-    HookFlags,
-    SwapKind
+    LiquidityManagement, TokenConfig, PoolSwapParams, HookFlags, SwapKind
 } from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
-
 import { FixedPoint } from "@balancer-labs/v3-solidity-utils/contracts/math/FixedPoint.sol";
-import { VaultGuard } from "@balancer-labs/v3-vault/contracts/VaultGuard.sol";
-import { BaseHooks } from "@balancer-labs/v3-vault/contracts/BaseHooks.sol";
-
 import { ModifiedWeightedMath } from "@balancer-labs/v3-solidity-utils/contracts/math/ModifiedWeightedMath.sol";
+import { BaseHooks } from "@balancer-labs/v3-vault/contracts/BaseHooks.sol";
+import { VaultGuard } from "@balancer-labs/v3-vault/contracts/VaultGuard.sol";
 
 /**
  * @notice Hook that implements dynamic swap fees.
- * @dev Fees are equal to expected maximum loss-versus-rebalancing.
+ * @dev Fees are equal to expected loss-versus-rebalancing.
  */
 contract AkronLVRFeeHook is BaseHooks, VaultGuard {
     using FixedPoint for uint256;
@@ -55,7 +49,7 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
         return true;
     }
 
-    function onBeforeSwap(PoolSwapParams calldata params, address pool) public override returns (bool) {
+    function onBeforeSwap(PoolSwapParams calldata params, address pool) public override onlyVault returns (bool) {
         if (lastBalancesScaled18[pool][block.number].length == 0) {
             lastBalancesScaled18[pool][block.number] = new uint256[](params.balancesScaled18.length);
             for (uint256 i = 0; i < params.balancesScaled18.length; ++i) {
@@ -75,21 +69,21 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
             if (params.balancesScaled18[params.indexIn] * lastBalancesScaled18[pool][block.number][params.indexOut] 
                 > params.balancesScaled18[params.indexOut] * lastBalancesScaled18[pool][block.number][params.indexIn]
             ) {
-                uint256 lastBalanceInPositiveDeltaScaled18 = ModifiedWeightedMath.getLastBalanceInPositiveDeltaGivenExactIn(
+                uint256 positiveDeltaInScaled18 = ModifiedWeightedMath.computePositiveDeltaInGivenExactIn(
                     params.balancesScaled18[params.indexIn], 
                     params.balancesScaled18[params.indexOut], 
                     lastBalancesScaled18[pool][block.number][params.indexIn],
                     lastBalancesScaled18[pool][block.number][params.indexOut]
                 );
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
-                    params.balancesScaled18[params.indexIn] - lastBalanceInPositiveDeltaScaled18,
+                    params.balancesScaled18[params.indexIn] - positiveDeltaInScaled18,
                     weights[params.indexIn].divDown(weights[params.indexOut]),
-                    lastBalanceInPositiveDeltaScaled18 + params.amountGivenScaled18,
-                    lastBalanceInPositiveDeltaScaled18
+                    positiveDeltaInScaled18 + params.amountGivenScaled18,
+                    positiveDeltaInScaled18
                 );
             } else {
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactIn(
-                    params.balancesScaled18[params.indexIn] + ModifiedWeightedMath.getLastBalanceInNegativeDeltaGivenExactIn(
+                    params.balancesScaled18[params.indexIn] + ModifiedWeightedMath.computeNegativeDeltaInGivenExactIn(
                         params.balancesScaled18[params.indexIn], 
                         params.balancesScaled18[params.indexOut], 
                         lastBalancesScaled18[pool][block.number][params.indexIn],
@@ -103,21 +97,21 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
             if (params.balancesScaled18[params.indexIn] * lastBalancesScaled18[pool][block.number][params.indexOut] 
                 > params.balancesScaled18[params.indexOut] * lastBalancesScaled18[pool][block.number][params.indexIn]
             ) {
-                uint256 lastBalanceOutNegativeDeltaScaled18 = ModifiedWeightedMath.getLastBalanceOutNegativeDeltaGivenExactOut(
+                uint256 negativeDeltaOutScaled18 = ModifiedWeightedMath.computeNegativeDeltaOutGivenExactOut(
                     params.balancesScaled18[params.indexIn], 
                     params.balancesScaled18[params.indexOut], 
                     lastBalancesScaled18[pool][block.number][params.indexIn], 
                     lastBalancesScaled18[pool][block.number][params.indexOut]
                 );
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
-                    params.balancesScaled18[params.indexOut] + lastBalanceOutNegativeDeltaScaled18,
+                    params.balancesScaled18[params.indexOut] + negativeDeltaOutScaled18,
                     weights[params.indexOut].divUp(weights[params.indexIn]),
-                    lastBalanceOutNegativeDeltaScaled18 + params.amountGivenScaled18,
-                    lastBalanceOutNegativeDeltaScaled18
+                    negativeDeltaOutScaled18 + params.amountGivenScaled18,
+                    negativeDeltaOutScaled18
                 );
             } else {                
                 swapFeePercentage = ModifiedWeightedMath.computeSwapFeePercentageGivenExactOut(
-                    params.balancesScaled18[params.indexOut] - ModifiedWeightedMath.getLastBalanceOutPositiveDeltaGivenExactOut(
+                    params.balancesScaled18[params.indexOut] - ModifiedWeightedMath.computePositiveDeltaOutGivenExactOut(
                         params.balancesScaled18[params.indexIn], 
                         params.balancesScaled18[params.indexOut], 
                         lastBalancesScaled18[pool][block.number][params.indexIn], 
