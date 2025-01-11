@@ -3,6 +3,7 @@
 pragma solidity ^0.8.24;
 
 import { FixedPoint } from "./FixedPoint.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 library ModifiedWeightedMath {
     using FixedPoint for uint256;
@@ -197,42 +198,44 @@ library ModifiedWeightedMath {
                 / (totalPower - lastPower);
     }
 
-    function sqrt(uint x) internal pure returns (uint y) {
-        uint z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
-    }
-
-    function getLastAmountInGivenExactIn(
+    function getLastBalanceInPositiveDeltaGivenExactIn(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountIn) {
         return 
-            balanceIn - sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut;
+            balanceIn - Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Floor) * lastBalanceIn / lastBalanceOut;
     }
 
-    function getLastAmountOutGivenExactIn(
+    function getLastBalanceInNegativeDeltaGivenExactIn(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountIn) {
         return 
-            sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut - balanceIn;
+            Math.sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn, Math.Rounding.Floor) * lastBalanceIn / lastBalanceOut - balanceIn;
     }
 
-    function getLastAmountOutGivenExactOut(
+    function getLastBalanceOutNegativeDeltaGivenExactOut(
         uint256 balanceIn, 
         uint256 balanceOut, 
         uint256 lastBalanceIn, 
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountOut) {
         return 
-            sqrt(lastBalanceIn * balanceOut * balanceIn) * lastBalanceOut /  (sqrt(lastBalanceOut) * lastBalanceIn) - balanceOut;
+            Math.sqrt(lastBalanceIn * balanceOut * balanceIn / lastBalanceOut, Math.Rounding.Ceil) * lastBalanceOut / lastBalanceIn - balanceOut;
     }
+
+    function getLastBalanceOutPositiveDeltaGivenExactOut(
+        uint256 balanceIn, 
+        uint256 balanceOut, 
+        uint256 lastBalanceIn, 
+        uint256 lastBalanceOut 
+    ) internal pure returns (uint256 lastAmountOut) {
+        return 
+            balanceOut - Math.sqrt(lastBalanceIn * balanceOut * balanceIn / lastBalanceOut, Math.Rounding.Ceil) * lastBalanceOut / lastBalanceIn;
+    }
+
 }
