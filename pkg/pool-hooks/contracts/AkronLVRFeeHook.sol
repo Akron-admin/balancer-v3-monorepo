@@ -23,7 +23,7 @@ import { BaseHooks } from "@balancer-labs/v3-vault/contracts/BaseHooks.sol";
 
 import { ScalingHelpers } from "@balancer-labs/v3-solidity-utils/contracts/helpers/ScalingHelpers.sol";
 import { ModifiedWeightedMath } from "@balancer-labs/v3-solidity-utils/contracts/math/ModifiedWeightedMath.sol";
-import "forge-std/console.sol";
+
 /**
  * @notice Hook that implements dynamic swap fees.
  * @dev Fees are equal to expected maximum loss-versus-rebalancing.

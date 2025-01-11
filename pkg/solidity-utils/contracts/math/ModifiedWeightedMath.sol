@@ -213,7 +213,17 @@ library ModifiedWeightedMath {
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountIn) {
         return 
-            balanceIn - sqrt(lastBalanceOut * balanceIn * balanceOut) * lastBalanceIn / (sqrt(lastBalanceIn) * lastBalanceOut);
+            balanceIn - sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut;
+    }
+
+    function getLastAmountOutGivenExactIn(
+        uint256 balanceIn, 
+        uint256 balanceOut, 
+        uint256 lastBalanceIn, 
+        uint256 lastBalanceOut 
+    ) internal pure returns (uint256 lastAmountIn) {
+        return 
+            sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut - balanceIn;
     }
 
     function getLastAmountOutGivenExactOut(
