@@ -7,7 +7,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IBasePool } from "@balancer-labs/v3-interfaces/contracts/vault/IBasePool.sol";
 import { IBasePoolFactory } from "@balancer-labs/v3-interfaces/contracts/vault/IBasePoolFactory.sol";
 import { IHooks } from "@balancer-labs/v3-interfaces/contracts/vault/IHooks.sol";
-import { ISwapFeePercentageBounds } from "@balancer-labs/v3-interfaces/contracts/vault/ISwapFeePercentageBounds.sol";
 import { IWeightedPool } from "@balancer-labs/v3-interfaces/contracts/pool-weighted/IWeightedPool.sol";
 import { IVault } from "@balancer-labs/v3-interfaces/contracts/vault/IVault.sol";
 import {
@@ -24,7 +23,7 @@ import { BaseHooks } from "@balancer-labs/v3-vault/contracts/BaseHooks.sol";
 
 import { ScalingHelpers } from "@balancer-labs/v3-solidity-utils/contracts/helpers/ScalingHelpers.sol";
 import { ModifiedWeightedMath } from "@balancer-labs/v3-solidity-utils/contracts/math/ModifiedWeightedMath.sol";
-
+import "forge-std/console.sol";
 /**
  * @notice Hook that implements dynamic swap fees.
  * @dev Fees are equal to expected maximum loss-versus-rebalancing.
@@ -127,7 +126,10 @@ contract AkronLVRFeeHook is BaseHooks, VaultGuard {
                 );
             }
         }
+
+        if (swapFeePercentage < IBasePool(pool).getMinimumSwapFeePercentage()) 
+            swapFeePercentage = IBasePool(pool).getMinimumSwapFeePercentage();
+
         return (true, swapFeePercentage);
     }
-
 }

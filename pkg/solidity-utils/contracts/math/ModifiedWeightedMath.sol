@@ -113,19 +113,19 @@ library ModifiedWeightedMath {
      * @notice Compute the `amountIn` of tokenIn in a swap, given the current balances and weights.
      * @param balanceIn The current balance of `tokenIn`
      * @param exponent The weight of `tokenIn` divided by the weight of `tokenOut`, rounded down
-     * @param amountIn The exact amount of `tokenIn` (i.e., the amount given in an ExactIn swap)
+     * @param totalAmountIn The exact amount of `tokenIn` (i.e., the amount given in an ExactIn swap)
      * @return swapFeePercentage The calculated swap Fee Percentage of `tokenIn` returned in an ExactIn swap
      */
     function computeSwapFeePercentageGivenExactIn(
         uint256 balanceIn,
         uint256 exponent,
-        uint256 amountIn
+        uint256 totalAmountIn
     ) internal pure returns (uint256) {
-        uint256 power = (balanceIn + amountIn).divUp(balanceIn + amountIn * 2).powUp(exponent);
+        uint256 power = (balanceIn + totalAmountIn).divUp(balanceIn + totalAmountIn * 2).powUp(exponent);
         return 
-            (power - balanceIn.divUp(balanceIn + amountIn).powUp(exponent))
-                * FixedPoint.ONE * (balanceIn + amountIn) 
-                / (power * amountIn);
+            (power - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent))
+                * FixedPoint.ONE * (balanceIn + totalAmountIn) 
+                / (power * totalAmountIn);
     }
 
     /**
@@ -157,19 +157,17 @@ library ModifiedWeightedMath {
      * @notice Compute the `amountIn` of tokenIn in a swap, given the current balances and weights.
      * @param balanceOut The current balance of `tokenOut`
      * @param exponent The weight of `tokenOut` divided by the weight of `tokenIn`, rounded up
-     * @param amountOut The exact amount of `tokenOut` (i.e., the amount given in an ExactOut swap)
+     * @param totalAmountOut The exact amount of `tokenOut` (i.e., the amount given in an ExactOut swap)
      * @return swapFeePercentage The calculated swap Fee Percentage of `tokenIn` returned in an ExactOut swap
      */
     function computeSwapFeePercentageGivenExactOut(
         uint256 balanceOut,
         uint256 exponent,
-        uint256 amountOut
+        uint256 totalAmountOut
     ) internal pure returns (uint256) {
-
-        uint256 power = (balanceOut - amountOut).divUp(balanceOut - amountOut * 2).powUp(exponent);
-
+        uint256 power = (balanceOut - totalAmountOut).divUp(balanceOut - totalAmountOut * 2).powUp(exponent);
         return 
-            (power - balanceOut.divUp(balanceOut - amountOut).powUp(exponent)) 
+            (power - balanceOut.divUp(balanceOut - totalAmountOut).powUp(exponent)) 
                 * FixedPoint.ONE 
                 / (power - FixedPoint.ONE);
     }
@@ -208,16 +206,6 @@ library ModifiedWeightedMath {
         }
     }
 
-    function getLastAmountOutGivenExactOut(
-        uint256 balanceIn, 
-        uint256 balanceOut, 
-        uint256 lastBalanceIn, 
-        uint256 lastBalanceOut 
-    ) internal pure returns (uint256 lastAmountOut) {
-        return 
-            sqrt(lastBalanceOut * balanceIn * balanceOut / lastBalanceIn) * lastBalanceIn / lastBalanceOut - balanceIn;
-    }
-
     function getLastAmountInGivenExactIn(
         uint256 balanceIn, 
         uint256 balanceOut, 
@@ -225,7 +213,16 @@ library ModifiedWeightedMath {
         uint256 lastBalanceOut 
     ) internal pure returns (uint256 lastAmountIn) {
         return 
-            balanceOut - sqrt(lastBalanceIn * balanceIn * balanceOut / lastBalanceOut) * lastBalanceOut / lastBalanceIn;
+            balanceIn - sqrt(lastBalanceOut * balanceIn * balanceOut) * lastBalanceIn / (sqrt(lastBalanceIn) * lastBalanceOut);
     }
 
+    function getLastAmountOutGivenExactOut(
+        uint256 balanceIn, 
+        uint256 balanceOut, 
+        uint256 lastBalanceIn, 
+        uint256 lastBalanceOut 
+    ) internal pure returns (uint256 lastAmountOut) {
+        return 
+            sqrt(lastBalanceIn * balanceOut * balanceIn) * lastBalanceOut /  (sqrt(lastBalanceOut) * lastBalanceIn) - balanceOut;
+    }
 }

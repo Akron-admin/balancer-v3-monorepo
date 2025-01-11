@@ -26,8 +26,6 @@ import {
     WeightedPoolContractsDeployer
 } from "@balancer-labs/v3-pool-weighted/test/foundry/utils/WeightedPoolContractsDeployer.sol";
 
-import "forge-std/console.sol";
-
 import { AkronLVRFeeHook } from "../../contracts/AkronLVRFeeHook.sol";
 
 contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
