@@ -124,9 +124,9 @@ library ModifiedWeightedMath {
     ) internal pure returns (uint256) {
         uint256 power = (balanceIn + totalAmountIn).divUp(balanceIn + totalAmountIn * 2).powUp(exponent);
         return 
-            (power - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent))
-                * FixedPoint.ONE * (balanceIn + totalAmountIn) 
-                / (power * totalAmountIn);
+            (
+                (power - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent)) * (balanceIn + totalAmountIn)
+            ).divUp(power * totalAmountIn);
     }
 
     /**
@@ -147,11 +147,11 @@ library ModifiedWeightedMath {
         uint256 lastPower = (balanceIn + lastAmountIn).divUp(balanceIn + lastAmountIn * 2).powUp(exponent);
         return 
             (
-                totalPower - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent)
-                    - (lastPower - balanceIn.divUp(balanceIn + lastAmountIn).powUp(exponent))
-            )
-                * FixedPoint.ONE * (balanceIn + totalAmountIn) 
-                / (totalPower * (totalAmountIn - lastAmountIn));
+                (
+                    totalPower - balanceIn.divUp(balanceIn + totalAmountIn).powUp(exponent)
+                        - (lastPower - balanceIn.divUp(balanceIn + lastAmountIn).powUp(exponent))
+                ) * (balanceIn + totalAmountIn)
+            ).divUp(totalPower * (totalAmountIn - lastAmountIn));
     }
 
     /**
@@ -168,9 +168,7 @@ library ModifiedWeightedMath {
     ) internal pure returns (uint256) {
         uint256 power = (balanceOut - totalAmountOut).divUp(balanceOut - totalAmountOut * 2).powUp(exponent);
         return 
-            (power - balanceOut.divUp(balanceOut - totalAmountOut).powUp(exponent)) 
-                * FixedPoint.ONE 
-                / (power - FixedPoint.ONE);
+            (power - balanceOut.divUp(balanceOut - totalAmountOut).powUp(exponent)).divUp(power - FixedPoint.ONE);
     }
 
     /**
@@ -193,9 +191,7 @@ library ModifiedWeightedMath {
             (
                 totalPower - balanceOut.divUp(balanceOut - totalAmountOut).powUp(exponent) 
                     - (lastPower - balanceOut.divUp(balanceOut - lastAmountOut).powUp(exponent))
-            ) 
-                * FixedPoint.ONE 
-                / (totalPower - lastPower);
+            ).divUp(totalPower - lastPower);
     }
 
     function computePositiveDeltaInGivenExactIn(
