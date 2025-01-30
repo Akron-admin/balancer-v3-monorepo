@@ -33,7 +33,7 @@ library AkronMath {
         
         // Compute normalized balanceIn by adding theoretical fees.
         // For example, if USDC is the input token, the last [USDC, ETH] reserves are [10000000, 33333] 
-        // and current reserves are [102950, 333], then the normalized balanceIn would be around 104000.
+        // and current reserves are [103846, 333], then the normalized balanceIn would be around 104000.
         balanceIn = balanceOut.mulDown(weightIn) * (
             (px > lastPx ? px - lastPx : lastPx - px).powDown(FixedPoint.ONE * 2).divDown(lastPx * 4) + px
         ) / weightOut;
@@ -93,7 +93,7 @@ library AkronMath {
         
         // Compute normalized balanceIn by adding theoretical fees.
         // For example, if USDC is the input token, the last [USDC, ETH] reserves are [10000000, 33333] 
-        // and current reserves are [102950, 333], then the normalized balanceIn would be around 104000.
+        // and current reserves are [103846, 333], then the normalized balanceIn would be around 104000.
         balanceIn = balanceOut.mulDown(weightIn) * (
             (px > lastPx ? px - lastPx : lastPx - px).powDown(FixedPoint.ONE * 2).divDown(lastPx * 4) + px
         ) / weightOut;
