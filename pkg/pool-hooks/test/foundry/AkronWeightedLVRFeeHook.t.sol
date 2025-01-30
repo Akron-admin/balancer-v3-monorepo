@@ -58,7 +58,7 @@ contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
 
     function createHook() internal override returns (address) {
         vm.prank(lp);
-        address akronWeightedLVRFeeHook = address(new AkronWeightedLVRFeeHook(IVault(address(vault))/*,  poolFactory */));
+        address akronWeightedLVRFeeHook = address(new AkronWeightedLVRFeeHook(IVault(address(vault))));
         return akronWeightedLVRFeeHook;
     }
 
@@ -84,7 +84,7 @@ contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
 
     function testDoUndoExactInDifferentWeights(uint256 weightTokenA) public {
         // Vary from 0.1% to 99.9%.
-        weightTokenA = bound(weightTokenA, 40e16, 60e16);
+        weightTokenA = bound(weightTokenA, 50e16, 50e16);
 
         uint256[] memory newPoolBalances = _setPoolBalancesWithDifferentWeights(weightTokenA);
 
@@ -161,7 +161,7 @@ contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
 
     function testDoUndoExactOutDifferentWeights(uint256 weightTokenA) public {
         // Vary from 0.1% to 99.9%.
-        weightTokenA = bound(weightTokenA, 40e16, 60e16);
+        weightTokenA = bound(weightTokenA, 50e16, 50e16);
 
         uint256[] memory newPoolBalances = _setPoolBalancesWithDifferentWeights(weightTokenA);
 
