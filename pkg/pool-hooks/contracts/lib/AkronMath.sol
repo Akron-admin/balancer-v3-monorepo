@@ -142,17 +142,17 @@ library AkronMath {
         uint256 grossAmountIn
     ) internal pure returns (uint256) {
         /**********************************************************************************************
-        // inGivenExactOutWithFees                                                                   //
+        // outGivenExactIn                                                                           //
         // aO = amountOut                                                                            //
         // bO = balanceOut                                                                           //
-        // bI = balanceIn              /  /        bO - aO            \    (wO / wI)      \          //
-        // aI = amountIn    aI = bI * |  | --------------------------  | ^            - 1  |         //
-        // wI = weightIn               \  \     ( bO - aO * 2)        /                   /          //
+        // bI = balanceIn              /      /            bI - aI        \    (wI / wO) \           //
+        // aI = amountIn    aO = bO * |  1 - | --------------------------  | ^            |          //
+        // wI = weightIn               \      \       ( bI + aI * 2 )     /              /           //
         // wO = weightOut                                                                            //
         **********************************************************************************************/
-        
-        // grossSwapFee = inGivenExactOutWithFees(grossAmountIn) - inGivenExactOut(grossAmountIn)
-        // lastSwapFee = inGivenExactOutWithFees(lastAmountIn) - inGivenExactOut(lastAmountIn)
+
+        // grossSwapFee = outGivenExactIn(grossAmountIn) - outGivenExactInWithFees(grossAmountIn)
+        // lastSwapFee = outGivenExactIn(lastAmountIn) - outGivenExactInWithFees(lastAmountIn)
         // netSwapFee = grossSwapFee - lastSwapFee
 
         // Amount in, so we round up overall.
