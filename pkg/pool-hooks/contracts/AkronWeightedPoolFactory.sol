@@ -26,9 +26,6 @@ contract AkronWeightedPoolFactory is IPoolVersion, BasePoolFactory, Version, Own
 
     string private _poolVersion;
 
-    /// @notice A pool creator was specified for a pool from a Balancer core pool type.
-    error AkronPoolWithDifferentCreator();
-
     constructor(
         IVault vault,
         uint32 pauseWindowDuration,
