@@ -28,7 +28,6 @@ library AkronMath {
         uint256 amountIn
     ) internal pure returns (uint256) {
         {
-        // Compute normalized balances
         uint256 lastPx = (lastBalanceIn * weightOut).divDown(lastBalanceOut * weightIn);
         uint256 px = (balanceIn * weightOut).divDown(balanceOut * weightIn);
         
@@ -41,6 +40,7 @@ library AkronMath {
         
         uint256 lastInvariant = lastBalanceIn.powUp(weightIn).mulUp(lastBalanceOut.powUp(weightOut));
         uint256 invariant = balanceIn.powUp(weightIn).mulUp(balanceOut.powUp(weightOut));
+        
         // Compute normalized lastBalances
         if (lastInvariant != invariant) {
             lastBalanceIn = lastBalanceIn.mulDivUp(invariant, lastInvariant);
@@ -88,7 +88,6 @@ library AkronMath {
         uint256 amountOut
     ) internal pure returns (uint256) {
         {
-        // Compute normalized balances
         uint256 lastPx = (lastBalanceIn * weightOut).divDown(lastBalanceOut * weightIn);
         uint256 px = (balanceIn * weightOut).divDown(balanceOut * weightIn);
         
@@ -101,6 +100,7 @@ library AkronMath {
         
         uint256 lastInvariant = lastBalanceIn.powUp(weightIn).mulUp(lastBalanceOut.powUp(weightOut));
         uint256 invariant = balanceIn.powUp(weightIn).mulUp(balanceOut.powUp(weightOut));
+        
         // Compute normalized lastBalances
         if (lastInvariant != invariant) {
             lastBalanceIn = lastBalanceIn.mulDivUp(invariant, lastInvariant);
