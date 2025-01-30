@@ -58,8 +58,8 @@ contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
 
     function createHook() internal override returns (address) {
         vm.prank(lp);
-        address akronLVRFeeHook = address(new AkronWeightedLVRFeeHook(IVault(address(vault))/*,  poolFactory */));
-        return akronLVRFeeHook;
+        address akronWeightedLVRFeeHook = address(new AkronWeightedLVRFeeHook(IVault(address(vault))/*,  poolFactory */));
+        return akronWeightedLVRFeeHook;
     }
 
     function setUpVariables() internal override {

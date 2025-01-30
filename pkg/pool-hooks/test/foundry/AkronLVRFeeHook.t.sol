@@ -26,7 +26,7 @@ import {
     WeightedPoolContractsDeployer
 } from "@balancer-labs/v3-pool-weighted/test/foundry/utils/WeightedPoolContractsDeployer.sol";
 
-import { AkronLVRFeeHook } from "../../contracts/AkronLVRFeeHook.sol";
+import { AkronWeightedLVRFeeHook } from "../../contracts/AkronWeightedLVRFeeHook.sol";
 
 contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
     using ArrayHelpers for *;
@@ -58,8 +58,8 @@ contract E2eSwapWeightedTest is E2eSwapTest, WeightedPoolContractsDeployer {
 
     function createHook() internal override returns (address) {
         vm.prank(lp);
-        address akronLVRFeeHook = address(new AkronLVRFeeHook(IVault(address(vault))));
-        return akronLVRFeeHook;
+        address akronWeightedLVRFeeHook = address(new AkronWeightedLVRFeeHook(IVault(address(vault))));
+        return akronWeightedLVRFeeHook;
     }
 
     function setUpVariables() internal override {

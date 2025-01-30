@@ -21,7 +21,7 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
     using FixedPoint for uint256;
 
     /**
-     * @notice A new `AkronLVRFeeHook` contract has been registered successfully for a given factory and pool.
+     * @notice A new `AkronWeightedLVRFeeHook` contract has been registered successfully for a given factory and pool.
      * @dev If the registration fails the call will revert, so there will be no event.
      * @param hooksContract This contract
      * @param pool The pool on which the hook was registered
