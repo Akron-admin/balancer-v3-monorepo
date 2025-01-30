@@ -26,12 +26,15 @@ contract AkronWeightedPoolFactory is IPoolVersion, BasePoolFactory, Version, Own
 
     string private _poolVersion;
 
+    /// @notice A pool creator was specified for a pool from a Balancer core pool type.
+    error AkronPoolWithDifferentCreator();
+
     constructor(
         IVault vault,
         uint32 pauseWindowDuration,
-        string memory factoryVersion, // '{"name":"AkronWeightedPool","version":1,"deployment":"20250204-v3-akron-weighted-pool"}';
-        string memory poolVersion // '{"name":"AkronWeightedPoolFactory","version":1,"deployment":"20250204-v3-akron-weighted-pool"}';
-    ) 
+        string memory factoryVersion,
+        string memory poolVersion
+    )
         BasePoolFactory(vault, pauseWindowDuration, type(WeightedPool).creationCode) 
         Version(factoryVersion) 
         Ownable(msg.sender) 
@@ -70,11 +73,11 @@ contract AkronWeightedPoolFactory is IPoolVersion, BasePoolFactory, Version, Own
         string memory symbol,
         TokenConfig[] memory tokens,
         uint256[] memory normalizedWeights,
-        PoolRoleAccounts memory roleAccounts,
         bool enableDonation,
         bool disableUnbalancedLiquidity,
         bytes32 salt
-    ) external returns (address pool) {        
+    ) external returns (address pool) {  
+        PoolRoleAccounts memory roleAccounts;
         roleAccounts.poolCreator = owner();
 
         LiquidityManagement memory liquidityManagement = getDefaultLiquidityManagement();
