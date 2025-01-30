@@ -31,7 +31,7 @@ library AkronMath {
         uint256 lastPx = (lastBalanceIn * weightOut).divDown(lastBalanceOut * weightIn);
         uint256 px = (balanceIn * weightOut).divDown(balanceOut * weightIn);
         
-        // Compute normalized balanceIn by adding theoretical fees.
+        // Compute normalized balanceIn by adding theoretical fees of tokenIn.
         // For example, if USDC is the input token, the last [USDC, ETH] reserves are [1000000000, 333333]
         // and current reserves are [103846, 320], then the normalized balanceIn would be around 104000,
         // thus making current reserves [104000, 320].
@@ -92,7 +92,7 @@ library AkronMath {
         uint256 lastPx = (lastBalanceIn * weightOut).divDown(lastBalanceOut * weightIn);
         uint256 px = (balanceIn * weightOut).divDown(balanceOut * weightIn);
         
-        // Compute normalized balanceIn by adding theoretical fees.
+        // Compute normalized balanceIn by adding theoretical fees of tokenIn.
         // For example, if USDC is the input token, the last [USDC, ETH] reserves are [1000000000, 333333]
         // and current reserves are [103846, 320], then the normalized balanceIn would be around 104000,
         // thus making current reserves [104000, 320].
