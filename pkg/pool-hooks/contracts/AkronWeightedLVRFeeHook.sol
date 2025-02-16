@@ -7,7 +7,7 @@ import { IRouter } from "@balancer-labs/v3-interfaces/contracts/vault/IRouter.so
 import { IVault } from "@balancer-labs/v3-interfaces/contracts/vault/IVault.sol";
 import { IWeightedPool } from "@balancer-labs/v3-interfaces/contracts/pool-weighted/IWeightedPool.sol";
 import {
-    LiquidityManagement, TokenConfig, PoolSwapParams, AfterSwapParams, HookFlags, SwapKind
+    LiquidityManagement, TokenConfig, PoolSwapParams, HookFlags, SwapKind
 } from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
 import { FixedPoint } from "@balancer-labs/v3-solidity-utils/contracts/math/FixedPoint.sol";
 import { AkronMath } from "./lib/AkronMath.sol";
@@ -53,11 +53,14 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
         uint256 bptAmount
     );
 
-    /// @notice Thrown when account other than top bid spender attempts to interact with an order
-    error MustBeStateTrader();
+    /// @notice Thrown when account other than the designated spender attempts to interact with an order
+    error MustBeSpender();
 
-    /// @notice Thrown when stateAmount is greater or equal to bidAmount
-    error BidAmountTooLow(uint256 stateAmount, uint256 bidAmount);
+    /// @notice Thrown when the designated spender is the zero address
+    error SpenderZeroAddress();
+
+    /// @notice Thrown when topBidAmount is greater or equal to bidAmount
+    error BidAmountTooLow(uint256 topBidAmount, uint256 bidAmount);
 
     error BidDurationTooShort();
 
@@ -74,12 +77,11 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
         uint256 spenderUpdateBlockTimestamp;
         uint256 swapBlockTimestamp;
         mapping(uint256 blocknumber => bool) disableSwap;
-        mapping(uint256 blocknumber => uint256[]) balancesScaled18;
     }
 
     mapping(address pool => mapping(uint256 indexIn => mapping(uint256 indexOut => State))) public states;
 
-    /// @notice Update an existing stabilizing state
+    /// @notice Update a bid to manage designated spender
     /// @param pool The pool for which to identify the amm pool of the state
     /// @param indexIn The zero-based index of tokenIn
     /// @param indexOut The zero-based index of tokenOut
@@ -87,16 +89,18 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
     function bid(address pool, uint256 indexIn, uint256 indexOut, int256 bptAmountDelta, address spender) external payable {
         State storage state = states[pool][indexIn][indexOut];
         if (state.owner != msg.sender) {
-            if (uint256(bptAmountDelta) < state.bptAmount) {
-                revert BidAmountTooLow(uint256(bptAmountDelta), state.bptAmount);
-            }
-            if (state.bptAmount != 0) {
+            if (state.owner != address(0)) {
+                if (uint256(bptAmountDelta) < state.bptAmount) {
+                    revert BidAmountTooLow(uint256(bptAmountDelta), state.bptAmount);
+                }
                 IERC20(pool).safeTransfer(msg.sender, state.bptAmount);
                 state.bptAmount = 0;
             }
             state.owner = msg.sender;
+            if (spender == address(0)) revert SpenderZeroAddress();
             state.spender = spender;
         }
+
         if (bptAmountDelta < 0) {
             if (state.spenderUpdateBlockTimestamp == block.timestamp) revert BidDurationTooShort();
             state.bptAmount -= uint256(-bptAmountDelta);
@@ -110,6 +114,7 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
             IERC20(pool).safeTransferFrom(msg.sender, address(this), uint256(bptAmountDelta));
             state.bptAmount += uint256(bptAmountDelta);
         }
+        
         emit UpdateState(pool, indexIn, indexOut, state.owner, state.spender, state.bptAmount);
     }
 
@@ -132,20 +137,17 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
     function onBeforeSwap(PoolSwapParams calldata params, address pool) public override onlyVault returns (bool) {
         State storage state = states[pool][params.indexIn][params.indexOut];
         if (block.timestamp > state.swapBlockTimestamp + _MAX_ZERO_SWAP_TX_DURATION) {
-            IERC20(pool).safeTransfer(state.owner, state.bptAmount);
+            if (state.owner != address(0)) IERC20(pool).safeTransfer(state.owner, state.bptAmount);
+            state.bptAmount = 0;
             state.owner = address(0);
             state.spender = address(0);
-            state.bptAmount = 0;
         }
         state.swapBlockTimestamp = block.timestamp;
         uint256 blockNumber = block.number;
         if (state.spender != address(0) && state.spender != msg.sender) revert MustBeStateTrader();
         if (state.disableSwap[blockNumber]) revert SwapDisabled();
         state.disableSwap[blockNumber] = true;
-        if (state.balancesScaled18[blockNumber].length == 0) {
-            state.balancesScaled18[blockNumber] = new uint256[](params.balancesScaled18.length);
-            state.balancesScaled18[blockNumber] = params.balancesScaled18;
-        }
+        
         return true;
     }
 
@@ -155,18 +157,16 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
         address pool,
         uint256 
     ) public view override onlyVault returns (bool, uint256 swapFeePercentage) {
-        State storage state = states[pool][params.indexIn][params.indexOut];
-        
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
         if (params.kind == SwapKind.EXACT_IN) {
             swapFeePercentage = AkronMath.computeSwapFeePercentageGivenExactIn(
-                state.balancesScaled18[block.number][params.indexIn],
+                params.balancesScaled18[params.indexIn],
                 weights[params.indexIn].divDown(weights[params.indexOut]),
                 params.amountGivenScaled18
             );
         } else {
             swapFeePercentage = AkronMath.computeSwapFeePercentageGivenExactOut(
-                state.balancesScaled18[block.number][params.indexOut],
+                params.balancesScaled18[params.indexOut],
                 weights[params.indexOut].divUp(weights[params.indexIn]),
                 params.amountGivenScaled18
             );
