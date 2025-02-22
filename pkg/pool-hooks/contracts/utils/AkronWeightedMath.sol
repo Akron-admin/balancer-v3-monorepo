@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 
 import { FixedPoint } from "@balancer-labs/v3-solidity-utils/contracts/math/FixedPoint.sol";
 
-library AkronMath {
+library AkronWeightedMath {
     using FixedPoint for uint256;
 
     /**

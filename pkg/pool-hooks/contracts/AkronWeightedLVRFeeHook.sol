@@ -10,24 +10,29 @@ import {
     LiquidityManagement, TokenConfig, PoolSwapParams, HookFlags, SwapKind
 } from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
 import { FixedPoint } from "@balancer-labs/v3-solidity-utils/contracts/math/FixedPoint.sol";
-import { AkronMath } from "./lib/AkronMath.sol";
 import { BaseHooks } from "@balancer-labs/v3-vault/contracts/BaseHooks.sol";
 import { VaultGuard } from "@balancer-labs/v3-vault/contracts/VaultGuard.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import { IPermit2 } from "permit2/src/interfaces/IPermit2.sol";
-
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { AkronWeightedMath } from "./utils/AkronWeightedMath.sol";
+import "forge-std/console.sol";
 /**
  * @notice Hook that implements dynamic swap fees.
  * @dev Fees are equal to expected loss-versus-rebalancing.
  */
-contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
+contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard, Ownable {
     using FixedPoint for uint256;
-    using SafeERC20 for IERC20;
-    using SafeCast for uint256;
 
-    uint256 internal constant _MAX_ZERO_SWAP_TX_DURATION = 1 hours;
+    // Only trusted routers are allowed to call this hook
+    address private _trustedRouter;
+
+    // Retrieve the mapping of blockNumber for the specified pool's last swap path from token in to token out
+    mapping(address pool => mapping(uint256 indexIn => mapping(uint256 indexOut => uint256))) public blockNumbers;
+
+    /**
+     * @notice A new trusted router is set by `setTrustedRouter`.
+     * @param newTrustedRouter The address of the new trusted router
+     */
+    event TrustedRouterChanged(address indexed newTrustedRouter);
 
     /**
      * @notice A new `AkronWeightedLVRFeeHook` contract has been registered successfully for a given factory and pool.
@@ -37,87 +42,18 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
      */
     event LVRFeeHookRegistered(address indexed hooksContract, address indexed pool);
 
-    /// @notice Emitted when a state is updated
-    /// @param pool The corresponding pool
-    /// @param indexIn The zero-based index of tokenIn
-    /// @param indexOut The zero-based index of tokenOut
-    /// @param owner The owner of the existing state
-    /// @param spender The spender of the existing state
-    /// @param bptAmount The updated amountIn
-    event UpdateState(
-        address pool,
-        uint256 indexIn, 
-        uint256 indexOut, 
-        address owner,
-        address spender,
-        uint256 bptAmount
-    );
+    /// @notice An unauthorized Router tried to execute a swap.
+    error RouterNotTrusted();
+    
+    /**
+     * @notice A swap path from token in to token out has already been executed. 
+     * `swap` may only be executed once in the current block.
+     */
+    error SwapAlreadyExecuted();
 
-    /// @notice Thrown when account other than the designated spender attempts to interact with an order
-    error MustBeSpender();
-
-    /// @notice Thrown when the designated spender is the zero address
-    error SpenderZeroAddress();
-
-    /// @notice Thrown when topBidAmount is greater or equal to bidAmount
-    error BidAmountTooLow(uint256 topBidAmount, uint256 bidAmount);
-
-    error BidDurationTooShort();
-
-    error SwapDisabled();
-
-    constructor(IVault vault) VaultGuard(vault) {
+    constructor(IVault vault) VaultGuard(vault) Ownable(msg.sender) {
         // solhint-disable-previous-line no-empty-blocks
     }
-
-    struct State {
-        address owner;
-        address spender;
-        uint256 bptAmount;
-        uint256 spenderUpdateBlockTimestamp;
-        uint256 swapBlockTimestamp;
-        mapping(uint256 blocknumber => bool) disableSwap;
-    }
-
-    mapping(address pool => mapping(uint256 indexIn => mapping(uint256 indexOut => State))) public states;
-
-    /// @notice Update a bid to manage designated spender
-    /// @param pool The pool for which to identify the amm pool of the state
-    /// @param indexIn The zero-based index of tokenIn
-    /// @param indexOut The zero-based index of tokenOut
-    /// @param bptAmountDelta The delta for the state sell amount. Negative to remove from state, positive to add
-    function bid(address pool, uint256 indexIn, uint256 indexOut, int256 bptAmountDelta, address spender) external payable {
-        State storage state = states[pool][indexIn][indexOut];
-        if (state.owner != msg.sender) {
-            if (state.owner != address(0)) {
-                if (uint256(bptAmountDelta) < state.bptAmount) {
-                    revert BidAmountTooLow(uint256(bptAmountDelta), state.bptAmount);
-                }
-                IERC20(pool).safeTransfer(msg.sender, state.bptAmount);
-                state.bptAmount = 0;
-            }
-            state.owner = msg.sender;
-            if (spender == address(0)) revert SpenderZeroAddress();
-            state.spender = spender;
-        }
-
-        if (bptAmountDelta < 0) {
-            if (state.spenderUpdateBlockTimestamp == block.timestamp) revert BidDurationTooShort();
-            state.bptAmount -= uint256(-bptAmountDelta);
-            IERC20(pool).safeTransfer(msg.sender, uint256(-bptAmountDelta));
-            if (state.bptAmount == 0) {
-                state.owner = address(0);
-                state.spender = address(0);
-            }
-        } else {
-            state.spenderUpdateBlockTimestamp == block.timestamp;
-            IERC20(pool).safeTransferFrom(msg.sender, address(this), uint256(bptAmountDelta));
-            state.bptAmount += uint256(bptAmountDelta);
-        }
-        
-        emit UpdateState(pool, indexIn, indexOut, state.owner, state.spender, state.bptAmount);
-    }
-
 
     function getHookFlags() public pure override returns (HookFlags memory hookFlags) {
         hookFlags.shouldCallBeforeSwap = true;
@@ -131,23 +67,16 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
         return true;
     }
 
-    /**
-     * @notice Store pool's starting balances
-    */
+    /// @notice Check whether swap conditions are met
     function onBeforeSwap(PoolSwapParams calldata params, address pool) public override onlyVault returns (bool) {
-        State storage state = states[pool][params.indexIn][params.indexOut];
-        if (block.timestamp > state.swapBlockTimestamp + _MAX_ZERO_SWAP_TX_DURATION) {
-            if (state.owner != address(0)) IERC20(pool).safeTransfer(state.owner, state.bptAmount);
-            state.bptAmount = 0;
-            state.owner = address(0);
-            state.spender = address(0);
-        }
-        state.swapBlockTimestamp = block.timestamp;
-        uint256 blockNumber = block.number;
-        if (state.spender != address(0) && state.spender != msg.sender) revert MustBeStateTrader();
-        if (state.disableSwap[blockNumber]) revert SwapDisabled();
-        state.disableSwap[blockNumber] = true;
-        
+        // If the Router is not trusted, the swap operation will revert.
+        if (params.router != _trustedRouter) revert RouterNotTrusted();
+
+        // If a swap path from token in to token out has already been executed in the current block, 
+        // the swap operation will revert.
+        if (blockNumbers[pool][params.indexIn][params.indexOut] == block.number) revert SwapAlreadyExecuted();
+        blockNumbers[pool][params.indexIn][params.indexOut] = block.number;
+
         return true;
     }
 
@@ -159,13 +88,13 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
     ) public view override onlyVault returns (bool, uint256 swapFeePercentage) {
         uint256[] memory weights = IWeightedPool(pool).getNormalizedWeights();
         if (params.kind == SwapKind.EXACT_IN) {
-            swapFeePercentage = AkronMath.computeSwapFeePercentageGivenExactIn(
+            swapFeePercentage = AkronWeightedMath.computeSwapFeePercentageGivenExactIn(
                 params.balancesScaled18[params.indexIn],
                 weights[params.indexIn].divDown(weights[params.indexOut]),
                 params.amountGivenScaled18
             );
         } else {
-            swapFeePercentage = AkronMath.computeSwapFeePercentageGivenExactOut(
+            swapFeePercentage = AkronWeightedMath.computeSwapFeePercentageGivenExactOut(
                 params.balancesScaled18[params.indexOut],
                 weights[params.indexOut].divUp(weights[params.indexIn]),
                 params.amountGivenScaled18
@@ -178,8 +107,19 @@ contract AkronWeightedLVRFeeHook is BaseHooks, VaultGuard {
         return (true, swapFeePercentage);
     }
 
-    /// @notice Getter for pool's normalizedWeights.
-    function getNormalizedWeights(address pool) external view returns (uint256[] memory) {
-        return  IWeightedPool(pool).getNormalizedWeights();
+    /**
+     * @notice Set a new trusted router of the hook.
+     * @dev This is a permissioned call. Emits a `TrustedRouterChanged` event.
+     * @param newTrustedRouter The address of the new trusted router
+     */
+    function setTrustedRouter(address newTrustedRouter) external onlyOwner {
+        _trustedRouter = newTrustedRouter;
+
+        emit TrustedRouterChanged(newTrustedRouter);
+    }
+
+    /// @notice Get the trusted router of the hook.
+    function getTrustedRouter() external view returns (address) {
+        return _trustedRouter;
     }
 }
