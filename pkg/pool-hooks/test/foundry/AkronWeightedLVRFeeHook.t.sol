@@ -10,7 +10,7 @@ import { PoolRoleAccounts } from "@balancer-labs/v3-interfaces/contracts/vault/V
 
 import { WeightedPool } from "@balancer-labs/v3-pool-weighted/contracts/WeightedPool.sol";
 
-import { AkronWeightedPoolFactory } from "@balancer-labs/v3-pool-hooks/contracts/AkronWeightedPoolFactory.sol";
+import { WeightedPoolFactory } from "@balancer-labs/v3-pool-weighted/contracts/WeightedPoolFactory.sol";
 import { BaseVaultTest } from "@balancer-labs/v3-vault/test/foundry/utils/BaseVaultTest.sol";
 
 import { StableMath } from "@balancer-labs/v3-solidity-utils/contracts/math/StableMath.sol";
@@ -42,17 +42,14 @@ contract E2eSwapWeightedTest is BaseVaultTest {
 
         (daiIdx, usdcIdx) = getSortedIndexes(address(dai), address(usdc));
         
-        vm.prank(admin);
-        akronWeightedLVRFeeHook.setTrustedRouter(address(router));
     }
 
     function createPoolFactory() internal override returns (address) {
-        return address(new AkronWeightedPoolFactory(IVault(address(vault)), 365 days, "Factory v1", "Pool v1"));
+        return address(new WeightedPoolFactory(IVault(address(vault)), 365 days, "Factory v1", "Pool v1"));
     }
 
     function createHook() internal override returns (address) {
-        vm.prank(admin);
-        akronWeightedLVRFeeHook = AkronWeightedLVRFeeHook(AkronWeightedPoolFactory(poolFactory).createHook());
+        akronWeightedLVRFeeHook = new AkronWeightedLVRFeeHook(IVault(address(vault)));
         vm.label(address(akronWeightedLVRFeeHook), "AkronWeightedLVRFeeHook");
         return address(akronWeightedLVRFeeHook);
     }
@@ -61,16 +58,21 @@ contract E2eSwapWeightedTest is BaseVaultTest {
         address[] memory tokens,
         string memory label
     ) internal override returns (address newPool, bytes memory poolArgs) {
-        newPool = AkronWeightedPoolFactory(poolFactory).create(
+        PoolRoleAccounts memory roleAccounts;
+        newPool = WeightedPoolFactory(poolFactory).create(
             "Akron Weighted Pool",
             "AKRONWEIGHTED",
             vault.buildTokenConfig(tokens.asIERC20()),
             [uint256(50e16), uint256(50e16)].toMemoryArray(),
+            roleAccounts,
+            0.001e16,
             address(akronWeightedLVRFeeHook),
             false,
             false,
             ZERO_BYTES32
         );
+
+                
         vm.label(address(newPool), label);
 
         return (
@@ -88,13 +90,8 @@ contract E2eSwapWeightedTest is BaseVaultTest {
         );
     }
 
-    function testSetTrustedRouterRevertIfOwnerIsUnauthorized__Fuzz() public {
-        vm.prank(hacker);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, hacker));
-        akronWeightedLVRFeeHook.setTrustedRouter(hacker);
-    }
-
     function testSwap__Fuzz(uint256 amountGivenScaled18, uint256 kindRaw) public {
+
         amountGivenScaled18 = bound(amountGivenScaled18, 1e18, poolInitAmount / 10);
         SwapKind kind = SwapKind(bound(kindRaw, 0, 1));
 
